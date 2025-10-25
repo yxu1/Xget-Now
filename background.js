@@ -8,13 +8,59 @@
  * - 管理扩展状态和配置
  */
 
-// 导入兼容层
-importScripts("webext-compat.js");
-
-// 确保兼容层可用
+// 兼容层加载检测
+// 在 Firefox 中，兼容层已通过 manifest 的 background.scripts 数组加载
+// 在 Chrome 中，需要通过 importScripts 加载
 if (typeof webext === "undefined") {
-  // 在非模块环境中，兼容层应该已经通过脚本标签加载
-  console.error("WebExt compatibility layer not found");
+  // 尝试通过 importScripts 加载兼容层（Chrome/Manifest V3 环境）
+  if (typeof importScripts !== "undefined") {
+    try {
+      importScripts("webext-compat.js");
+    } catch (error) {
+      console.error("Failed to load webext-compat.js via importScripts:", error);
+    }
+  }
+  
+  // 再次检查兼容层是否可用
+  if (typeof webext === "undefined") {
+    console.error("WebExt compatibility layer not found");
+    // 创建一个最小化的兼容层存根，避免完全崩溃
+    const minimalWebext = {
+      runtime: {
+        onInstalled: { addListener: () => {} },
+        onMessage: { addListener: () => {},
+        sendMessage: () => Promise.resolve() }
+      },
+      storage: {
+        sync: {
+          get: () => Promise.resolve({}),
+          set: () => Promise.resolve()
+        },
+        local: {
+          get: () => Promise.resolve({}),
+          set: () => Promise.resolve()
+        }
+      },
+      downloads: {
+        onDeterminingFilename: { addListener: () => {},
+        cancel: () => Promise.resolve(),
+        download: () => Promise.resolve() }
+      },
+      tabs: {
+        sendMessage: () => Promise.resolve(),
+        query: () => Promise.resolve([])
+      }
+    };
+    
+    // 为全局环境提供兼容层
+    if (typeof self !== "undefined") {
+      self.webext = minimalWebext;
+    } else if (typeof window !== "undefined") {
+      window.webext = minimalWebext;
+    } else {
+      this.webext = minimalWebext;
+    }
+  }
 }
 
 /**
